@@ -1,0 +1,93 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.ComponentModel;
+
+namespace ragaccountmgr
+{
+    public partial class AccountControl : UserControl, INotifyPropertyChanged
+    {
+        public AccountControl()
+        {
+            InitializeComponent();
+            DataContextChanged += (s, e) => SetupCommands();
+        }
+
+        private void SetupCommands()
+        {
+            if (DataContext is Account account)
+            {
+                CopyUsernameCommand = new RelayCommand(() => 
+                {
+                    Clipboard.SetText(account.Username);
+                    SetGlobalLastCopiedField("Username");
+                });
+                CopyPasswordCommand = new RelayCommand(() => 
+                {
+                    Clipboard.SetText(account.Password);
+                    SetGlobalLastCopiedField("Password");
+                });
+                CopyOtpCodeCommand = new RelayCommand(() => 
+                {
+                    var totpCode = GetTotpCode(account);
+                    Clipboard.SetText(totpCode);
+                    SetGlobalLastCopiedField("OtpCode");
+                });
+                EditAccountCommand = new RelayCommand(() => 
+                {
+                    EditAccount(account);
+                });
+                OnPropertyChanged(nameof(CopyUsernameCommand));
+                OnPropertyChanged(nameof(CopyPasswordCommand));
+                OnPropertyChanged(nameof(CopyOtpCodeCommand));
+                OnPropertyChanged(nameof(EditAccountCommand));
+            }
+        }
+
+        private void EditAccount(Account account)
+        {
+            // Find the MainWindow and trigger edit mode
+            var mainWindow = Window.GetWindow(this);
+            if (mainWindow?.DataContext is MainWindowViewModel viewModel)
+            {
+                viewModel.EditAccount(account);
+            }
+        }
+
+        private void SetGlobalLastCopiedField(string fieldName)
+        {
+            // Find the MainWindow and update its LastCopiedField
+            var mainWindow = Window.GetWindow(this);
+            if (mainWindow?.DataContext is MainWindowViewModel viewModel && DataContext is Account account)
+            {
+                // Include username to make the field identifier unique per account
+                viewModel.LastCopiedField = $"{account.Username}_{fieldName}";
+            }
+        }
+
+        private string GetTotpCode(Account account)
+        {
+            // Find the MainWindow to get the TOTP service
+            var mainWindow = Window.GetWindow(this);
+            if (mainWindow?.DataContext is MainWindowViewModel viewModel)
+            {
+                // If there's a TOTP seed, use the service to get the current code
+                if (!string.IsNullOrWhiteSpace(account.OtpSeed))
+                {
+                    return viewModel.TotpService.GetTotpCode(account.Username);
+                }
+                // No TOTP seed, return empty
+                return string.Empty;
+            }
+            return string.Empty;
+        }
+
+        public ICommand CopyUsernameCommand { get; private set; } = new RelayCommand(() => { });
+        public ICommand CopyPasswordCommand { get; private set; } = new RelayCommand(() => { });
+        public ICommand CopyOtpCodeCommand { get; private set; } = new RelayCommand(() => { });
+        public ICommand EditAccountCommand { get; private set; } = new RelayCommand(() => { });
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+} 
