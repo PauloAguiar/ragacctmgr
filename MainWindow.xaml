@@ -55,6 +55,40 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
+        
+        <!-- Add Button style with consistent hover effects -->
+        <Style x:Key="AddButtonStyle" TargetType="Button">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="60"/>
+            <Setter Property="Height" Value="60"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="buttonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="30">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="buttonBorder" Property="Background" Value="#45A049"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="buttonBorder" Property="Background" Value="#3E8E41"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -72,6 +106,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <!-- Title (left) -->
                     <TextBlock Grid.Column="0" Text="Contas" FontSize="24" FontWeight="Bold" Foreground="#333" VerticalAlignment="Center" HorizontalAlignment="Left"/>
@@ -79,8 +114,10 @@
                     <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,8,0">
                         <Hyperlink NavigateUri="https://github.com/PauloAguiar/ragacctmgr" RequestNavigate="Hyperlink_RequestNavigate">GitHub</Hyperlink>
                     </TextBlock>
+                    <!-- Import Button -->
+                    <Button Grid.Column="2" Content="Importar Conta" Command="{Binding ImportAccountCommand}" Style="{StaticResource HeaderPrimaryButtonStyle}" VerticalAlignment="Center"/>
                     <!-- Config Button (rightmost) -->
-                    <Button Grid.Column="2" Content="Arquivos" Command="{Binding OpenConfigFolderCommand}" Style="{StaticResource HeaderPrimaryButtonStyle}" VerticalAlignment="Center"/>
+                    <Button Grid.Column="3" Content="Arquivos" Command="{Binding OpenConfigFolderCommand}" Style="{StaticResource HeaderPrimaryButtonStyle}" VerticalAlignment="Center"/>
                 </Grid>
             </Border>
 
@@ -113,14 +150,10 @@
 
         <!-- Fixed Add Button (Bottom Right) -->
         <Button Command="{Binding ShowAddBladeCommand}" ToolTip="Adicionar Conta"
-                Style="{StaticResource CircularButtonStyle}"
-                Width="60" Height="60" 
+                Style="{StaticResource AddButtonStyle}"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                 Margin="0,0,40,40"
-                Background="#4CAF50"
-                Foreground="White" FontSize="24" FontWeight="Bold"
-                Content="&#x2795;"
-                Cursor="Hand"
+                Content="&#xE710;"
                 Panel.ZIndex="5"/>
     </Grid>
 </Window>

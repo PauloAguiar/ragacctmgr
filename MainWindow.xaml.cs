@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -8,6 +9,7 @@ using System.Text.Json.Serialization;
 using System.IO;
 using System.Diagnostics;
 using System.Windows.Navigation;
+using System.Linq;
 
 namespace ragaccountmgr
 {
@@ -65,6 +67,7 @@ namespace ragaccountmgr
             AddCommentsCommand = new RelayCommand(AddComments);
             RemoveCommentsCommand = new RelayCommand(RemoveComments);
             OpenConfigFolderCommand = new RelayCommand(OpenConfigFolder);
+            ImportAccountCommand = new RelayCommand(ImportAccount);
             
             LoadAccounts();
         }
@@ -115,6 +118,7 @@ namespace ragaccountmgr
         public ICommand AddCommentsCommand { get; }
         public ICommand RemoveCommentsCommand { get; }
         public ICommand OpenConfigFolderCommand { get; }
+        public ICommand ImportAccountCommand { get; }
 
         public string LastCopiedField
         {
@@ -361,6 +365,114 @@ namespace ragaccountmgr
                 UseShellExecute = true,
                 Verb = "open"
             });
+        }
+
+        private void ImportAccount()
+        {
+            try
+            {
+                var importDialog = new ImportDialog();
+                importDialog.Owner = Application.Current.MainWindow;
+                importDialog.ShowDialog();
+
+                if (!importDialog.DialogResult)
+                {
+                    return; // User cancelled
+                }
+
+                var importedAccount = ParseAccountData(importDialog.ImportData);
+                if (importedAccount == null)
+                {
+                    MessageBox.Show("Dados de conta inválidos.", "Erro de Importação", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Check if an account with the same username already exists
+                if (Accounts.Any(a => a.Username.Equals(importedAccount.Username, StringComparison.OrdinalIgnoreCase)))
+                {
+                    MessageBox.Show($"Uma conta com o usuário '{importedAccount.Username}' já existe.", "Erro de Importação", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Add the imported account directly to the collection
+                Accounts.Add(importedAccount);
+
+                // If the account has an OTP seed, register it with the TOTP service
+                if (!string.IsNullOrWhiteSpace(importedAccount.OtpSeed))
+                {
+                    _totpService.AddTotpSeed(importedAccount.Username, importedAccount.OtpSeed);
+                }
+
+                // Save the accounts to file
+                SaveAccounts();
+
+                // Show success message
+                MessageBox.Show("Conta importada com sucesso!", "Importação Concluída", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao importar conta: {ex.Message}", "Erro de Importação", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private Account? ParseAccountData(string data)
+        {
+            try
+            {
+                var lines = data.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                var account = new Account();
+                
+                foreach (var line in lines)
+                {
+                    var colonIndex = line.IndexOf(':');
+                    if (colonIndex > 0)
+                    {
+                        var key = line.Substring(0, colonIndex).Trim();
+                        var value = line.Substring(colonIndex + 1).Trim();
+                        
+                        switch (key.ToLower())
+                        {
+                            case "username":
+                            case "usuario":
+                                account.Username = value;
+                                break;
+                            case "password":
+                            case "senha":
+                                account.Password = value;
+                                break;
+                            case "pin":
+                                account.PinCode = value;
+                                break;
+                            case "otp":
+                                // Skip OTP code as it's dynamic - we need the seed
+                                break;
+                            case "otp segredo":
+                                // This is the OTP seed that should be imported
+                                account.OtpSeed = value;
+                                break;
+                            case "kafra":
+                                account.StorageCode = value;
+                                break;
+                            case "comments":
+                            case "comentarios":
+                                account.Comments = value;
+                                break;
+                        }
+                    }
+                }
+                
+                // Validate that we have at least username and password
+                if (string.IsNullOrWhiteSpace(account.Username) || string.IsNullOrWhiteSpace(account.Password))
+                {
+                    return null;
+                }
+                
+                return account;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

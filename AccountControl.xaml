@@ -4,6 +4,7 @@
              xmlns:local="clr-namespace:ragaccountmgr"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+
              mc:Ignorable="d"
              Height="Auto" Width="Auto"
              >
@@ -18,6 +19,50 @@
         <local:TotpArcProgressConverter x:Key="TotpArcProgressConverter"/>
         <local:TotpCircleColorConverter x:Key="TotpCircleColorConverter"/>
         <local:TotpCounterColorConverter x:Key="TotpCounterColorConverter"/>
+        <local:ButtonHoverColorConverter x:Key="ButtonHoverColorConverter"/>
+        
+        <Style x:Key="FontAwesomeButton" TargetType="Button">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Width" Value="29"/>
+            <Setter Property="Height" Value="29"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="buttonBorder"
+                                CornerRadius="14.5"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Border.Background>
+                                <MultiBinding Converter="{StaticResource ButtonHoverColorConverter}">
+                                    <Binding RelativeSource="{RelativeSource TemplatedParent}" Path="Background"/>
+                                    <Binding RelativeSource="{RelativeSource TemplatedParent}" Path="IsMouseOver"/>
+                                </MultiBinding>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="buttonBorder" Property="Background">
+                                    <Setter.Value>
+                                        <MultiBinding Converter="{StaticResource ButtonHoverColorConverter}" ConverterParameter="pressed">
+                                            <Binding RelativeSource="{RelativeSource TemplatedParent}" Path="Background"/>
+                                            <Binding RelativeSource="{RelativeSource TemplatedParent}" Path="IsMouseOver"/>
+                                        </MultiBinding>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
         <Style x:Key="CircularCopyButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="Black"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -72,8 +117,9 @@
                     <TextBlock d:Text="fulano@gmail.com" Text="{Binding Username}" FontSize="18" FontWeight="Bold" Margin="0,0,0,0"  VerticalAlignment="Center"
                Foreground="#333" TextWrapping="Wrap"/>
                     <Button Command="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=CopyUsernameCommand}"
-                            Style="{StaticResource CircularCopyButtonStyle}"
-                            ToolTip="Copiar Usuário">
+                            Style="{StaticResource FontAwesomeButton}"
+                            ToolTip="Copiar Usuário"
+                            Content="&#xE8C8;">
                         <Button.Background>
                             <MultiBinding Converter="{StaticResource LastCopiedFieldMultiConverter}" ConverterParameter="Username">
                                 <Binding RelativeSource="{RelativeSource AncestorType=Window}" Path="DataContext.LastCopiedField"/>
@@ -83,11 +129,35 @@
                     </Button>
                 </StackPanel>
                 
-                <Button Grid.Column="1" Command="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EditAccountCommand}"
-                        Style="{StaticResource CircularCopyButtonStyle}" FontSize="14"
-                        ToolTip="Editar Conta">
-                    <Button.Content>✏️</Button.Content>
-                </Button>
+                <Grid Grid.Column="1" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal">
+                        <Grid>
+                            <Button Command="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShareAccountCommand}"
+                                    Style="{StaticResource FontAwesomeButton}"
+                                    Margin="0,0,8,0"
+                                    x:Name="ShareButton"
+                                    ToolTip="Compartilhar Conta"
+                                    Content="&#xE72D;"/>
+                            <Border x:Name="CopiedPopup"
+                                    Background="#4CAF50"
+                                    CornerRadius="3"
+                                    Padding="8,4"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="-60,0,0,0"
+                                    Visibility="Collapsed">
+                                <TextBlock Text="Copiado!" 
+                                           Foreground="White" 
+                                           FontSize="11" 
+                                           FontWeight="SemiBold"/>
+                            </Border>
+                        </Grid>
+                        <Button Command="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EditAccountCommand}"
+                                Style="{StaticResource FontAwesomeButton}" FontSize="14"
+                                ToolTip="Editar Conta"
+                                Content="&#xE70F;"/>
+                    </StackPanel>
+                </Grid>
             </Grid>
             
             <!-- Secrets Section -->
@@ -97,8 +167,9 @@
                     <Label Style="{StaticResource FieldLabelStyle}">Senha</Label>
                     <TextBlock Text="••••••••••••••••" Style="{StaticResource FieldValueStyle}"/>
                     <Button Command="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=CopyPasswordCommand}"
-                            Style="{StaticResource CircularCopyButtonStyle}"
-                            ToolTip="Copiar Senha">
+                            Style="{StaticResource FontAwesomeButton}"
+                            ToolTip="Copiar Senha"
+                            Content="&#xE8C8;">
                         <Button.Background>
                             <MultiBinding Converter="{StaticResource LastCopiedFieldMultiConverter}" ConverterParameter="Password">
                                 <Binding RelativeSource="{RelativeSource AncestorType=Window}" Path="DataContext.LastCopiedField"/>
@@ -152,8 +223,9 @@
                         </TextBlock.Text>
                     </TextBlock>
                     <Button Command="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=CopyOtpCodeCommand}"
-                            Style="{StaticResource CircularCopyButtonStyle}"
-                            ToolTip="Copiar OTP">
+                            Style="{StaticResource FontAwesomeButton}"
+                            ToolTip="Copiar OTP"
+                            Content="&#xE8C8;">
                         <Button.Background>
                             <MultiBinding Converter="{StaticResource LastCopiedFieldMultiConverter}" ConverterParameter="OtpCode">
                                 <Binding RelativeSource="{RelativeSource AncestorType=Window}" Path="DataContext.LastCopiedField"/>

@@ -1,0 +1,87 @@
+<Window x:Class="ragaccountmgr.ImportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Importar Conta" Height="300" Width="400"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        Background="#F5F5F5">
+    
+    <Window.Resources>
+        <!-- Use the same button styles as the add blade -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        
+        <Style x:Key="CancelButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#DA6C6C"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="5,5,5,5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Instructions -->
+        <TextBlock Grid.Row="0" 
+                   Text="Cole os dados da conta no campo abaixo e clique em OK:" 
+                   FontSize="12" 
+                   Foreground="#666666"/>
+
+        <!-- Text Input -->
+        <Border Grid.Row="1" 
+                BorderBrush="#CCCCCC" 
+                BorderThickness="1" 
+                CornerRadius="4" 
+                Background="White">
+            <TextBox x:Name="ImportDataTextBox"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"
+                     FontFamily="Consolas"
+                     FontSize="11"
+                     Margin="2,2,2,2"
+                     BorderThickness="0"
+                     Background="Transparent"/>
+        </Border>
+
+        <!-- Error Message -->
+        <TextBlock x:Name="ErrorMessage" 
+                   Grid.Row="2"
+                   Text="" 
+                   Foreground="Red" 
+                   FontSize="12" 
+                   Margin="0,10,0,0"
+                   Visibility="Collapsed"/>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="3" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right" Margin="0,5,0,0">
+            <Button x:Name="CancelButton" 
+                    Content="Cancelar" 
+                    Style="{StaticResource CancelButtonStyle}" 
+                    Click="CancelButton_Click"/>
+            <Button x:Name="OkButton" 
+                    Content="OK" 
+                    Style="{StaticResource PrimaryButtonStyle}" 
+                    Click="OkButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window> 

@@ -304,4 +304,45 @@ namespace ragaccountmgr
             throw new NotImplementedException();
         }
     }
+
+    public class ButtonHoverColorConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values.Length < 2) return System.Windows.Media.Brushes.White;
+            
+            var background = values[0] as System.Windows.Media.SolidColorBrush;
+            var isMouseOver = values[1] is bool && (bool)values[1];
+            var isPressed = parameter?.ToString() == "pressed";
+            
+            if (background == null) return System.Windows.Media.Brushes.White;
+            
+            // Check if it's the copied state (green background)
+            var copiedColor = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#BBD8A3");
+            if (background.Color == copiedColor)
+            {
+                if (isPressed)
+                    return new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#81C784"));
+                else if (isMouseOver)
+                    return new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#A5D6A7"));
+                else
+                    return background; // Return original green
+            }
+            else
+            {
+                // Default state
+                if (isPressed)
+                    return new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#D0D0D0"));
+                else if (isMouseOver)
+                    return new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#E8E8E8"));
+                else
+                    return background; // Return original background
+            }
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 } 
