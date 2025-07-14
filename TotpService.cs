@@ -17,23 +17,56 @@ namespace ragaccountmgr
         private readonly Dispatcher _dispatcher;
         private bool _disposed = false;
         private int _timerTick;
+        private DateTime? _ntpUtcNow = null;
+        private DateTime _ntpLastSync = DateTime.MinValue;
+        private TimeSpan _ntpSyncInterval = TimeSpan.FromMinutes(5);
+        private DispatcherTimer _ntpSyncTimer;
+        private TimeSpan _ntpMaxSkew = TimeSpan.FromSeconds(10); // If NTP is too old, fallback
 
         public TotpService()
         {
-            // Get the current dispatcher (UI thread)
             _dispatcher = Dispatcher.CurrentDispatcher;
-            
-            // Update TOTP codes every 30 seconds
+
+            // NTP sync timer
+            _ntpSyncTimer = new DispatcherTimer();
+            _ntpSyncTimer.Interval = _ntpSyncInterval;
+            _ntpSyncTimer.Tick += async (s, e) => await SyncNtpTimeAsync();
+            _ntpSyncTimer.Start();
+            // Initial NTP fetch
+            _ = SyncNtpTimeAsync();
+
             _timer = new DispatcherTimer();
             _timer.Interval = TimeSpan.FromSeconds(30);
             _timer.Tick += UpdateTotpCodes;
             _timer.Start();
 
-            // Update countdown every second
             _countdownTimer = new DispatcherTimer();
             _countdownTimer.Interval = TimeSpan.FromSeconds(1);
             _countdownTimer.Tick += UpdateCountdown;
             _countdownTimer.Start();
+        }
+
+        private async Task SyncNtpTimeAsync()
+        {
+            var ntp = await NtpClient.GetNetworkUtcTimeAsync();
+            if (ntp.HasValue)
+            {
+                _ntpUtcNow = ntp.Value;
+                _ntpLastSync = DateTime.UtcNow;
+            }
+        }
+
+        private DateTime GetCurrentUtcNow()
+        {
+            if (_ntpUtcNow.HasValue)
+            {
+                var elapsed = DateTime.UtcNow - _ntpLastSync;
+                if (elapsed < _ntpSyncInterval + _ntpMaxSkew)
+                {
+                    return _ntpUtcNow.Value + elapsed;
+                }
+            }
+            return DateTime.UtcNow;
         }
 
         public void AddTotpSeed(string accountId, string seed)
@@ -43,25 +76,23 @@ namespace ragaccountmgr
 
             try
             {
-                // Convert the seed to bytes (assuming it's base32 encoded)
                 var key = Base32Encoding.ToBytes(seed);
                 var totp = new Totp(key);
-                
-                // Calculate initial remaining seconds
-                var now = DateTime.UtcNow;
-                var timeStep = 30; // TOTP standard is 30 seconds
+
+                var now = GetCurrentUtcNow();
+                var timeStep = 30;
                 var secondsSinceEpoch = (long)(now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
                 var currentStep = secondsSinceEpoch / timeStep;
                 var nextStep = currentStep + 1;
                 var nextStepTime = nextStep * timeStep;
                 var remainingSeconds = (int)(nextStepTime - secondsSinceEpoch);
-                
+
                 _totpGenerators[accountId] = new TotpGenerator
                 {
                     Totp = totp,
                     Seed = seed,
                     CurrentCode = totp.ComputeTotp(),
-                    LastUpdate = DateTime.UtcNow,
+                    LastUpdate = now,
                     RemainingSeconds = remainingSeconds
                 };
 
@@ -69,7 +100,6 @@ namespace ragaccountmgr
             }
             catch (Exception ex)
             {
-                // Handle invalid seed format
                 System.Diagnostics.Debug.WriteLine($"Invalid TOTP seed for account {accountId}: {ex.Message}");
             }
         }
@@ -126,22 +156,22 @@ namespace ragaccountmgr
             if (_disposed) return;
 
             var updated = false;
+            var now = GetCurrentUtcNow();
             foreach (var kvp in _totpGenerators)
             {
                 var generator = kvp.Value;
                 var newCode = generator.Totp.ComputeTotp();
-                
+
                 if (newCode != generator.CurrentCode)
                 {
                     generator.CurrentCode = newCode;
-                    generator.LastUpdate = DateTime.UtcNow;
+                    generator.LastUpdate = now;
                     updated = true;
                 }
             }
 
             if (updated)
             {
-                // Notify UI that TOTP codes have changed
                 OnPropertyChanged(nameof(GetTotpCode));
             }
         }
@@ -152,28 +182,26 @@ namespace ragaccountmgr
 
             var updated = false;
             var codeUpdated = false;
+            var now = GetCurrentUtcNow();
             foreach (var kvp in _totpGenerators)
             {
                 var generator = kvp.Value;
-                
-                // Calculate remaining seconds
-                var now = DateTime.UtcNow;
-                var timeStep = 30; // TOTP standard is 30 seconds
+
+                var timeStep = 30;
                 var secondsSinceEpoch = (long)(now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
                 var currentStep = secondsSinceEpoch / timeStep;
                 var nextStep = currentStep + 1;
                 var nextStepTime = nextStep * timeStep;
                 var remainingSeconds = (int)(nextStepTime - secondsSinceEpoch);
 
-                // Always check if the code needs to be updated
                 var newCode = generator.Totp.ComputeTotp();
                 if (newCode != generator.CurrentCode || remainingSeconds == 0)
                 {
                     generator.CurrentCode = newCode;
-                    generator.LastUpdate = DateTime.UtcNow;
+                    generator.LastUpdate = now;
                     codeUpdated = true;
                 }
-                
+
                 if (remainingSeconds != generator.RemainingSeconds)
                 {
                     generator.RemainingSeconds = remainingSeconds;
@@ -181,14 +209,13 @@ namespace ragaccountmgr
                 }
             }
 
-            // Always increment TimerTick to force UI update
             TimerTick++;
-            
+
             if (updated)
             {
                 OnPropertyChanged(nameof(GetRemainingSeconds));
             }
-            
+
             if (codeUpdated)
             {
                 OnPropertyChanged(nameof(GetTotpCode));
