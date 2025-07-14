@@ -12,38 +12,24 @@ namespace ragaccountmgr
     public class TotpService : INotifyPropertyChanged, IDisposable
     {
         private readonly Dictionary<string, TotpGenerator> _totpGenerators = new();
-        private readonly DispatcherTimer _timer;
-        private readonly DispatcherTimer _countdownTimer;
+        private readonly Timer _mainTimer;
         private readonly Dispatcher _dispatcher;
         private bool _disposed = false;
         private int _timerTick;
         private DateTime? _ntpUtcNow = null;
         private DateTime _ntpLastSync = DateTime.MinValue;
         private TimeSpan _ntpSyncInterval = TimeSpan.FromMinutes(5);
-        private DispatcherTimer _ntpSyncTimer;
         private TimeSpan _ntpMaxSkew = TimeSpan.FromSeconds(10); // If NTP is too old, fallback
 
         public TotpService()
         {
             _dispatcher = Dispatcher.CurrentDispatcher;
 
-            // NTP sync timer
-            _ntpSyncTimer = new DispatcherTimer();
-            _ntpSyncTimer.Interval = _ntpSyncInterval;
-            _ntpSyncTimer.Tick += async (s, e) => await SyncNtpTimeAsync();
-            _ntpSyncTimer.Start();
             // Initial NTP fetch
             _ = SyncNtpTimeAsync();
 
-            _timer = new DispatcherTimer();
-            _timer.Interval = TimeSpan.FromSeconds(30);
-            _timer.Tick += UpdateTotpCodes;
-            _timer.Start();
-
-            _countdownTimer = new DispatcherTimer();
-            _countdownTimer.Interval = TimeSpan.FromSeconds(1);
-            _countdownTimer.Tick += UpdateCountdown;
-            _countdownTimer.Start();
+            // Use System.Threading.Timer for more reliable timing
+            _mainTimer = new Timer(OnMainTimerTick, null, TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(200));
         }
 
         private async Task SyncNtpTimeAsync()
@@ -81,22 +67,20 @@ namespace ragaccountmgr
 
                 var now = GetCurrentUtcNow();
                 var timeStep = 30;
-                var secondsSinceEpoch = (long)(now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
-                var currentStep = secondsSinceEpoch / timeStep;
-                var nextStep = currentStep + 1;
-                var nextStepTime = nextStep * timeStep;
-                var remainingSeconds = (int)(nextStepTime - secondsSinceEpoch);
+                var secondsSinceEpoch = (now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+                var currentStepProgress = secondsSinceEpoch % timeStep;
+                var remainingSeconds = Math.Max(1, (int)Math.Ceiling(timeStep - currentStepProgress));
 
                 _totpGenerators[accountId] = new TotpGenerator
                 {
                     Totp = totp,
                     Seed = seed,
-                    CurrentCode = totp.ComputeTotp(),
+                    CurrentCode = totp.ComputeTotp(now),
                     LastUpdate = now,
                     RemainingSeconds = remainingSeconds
                 };
 
-                OnPropertyChanged(nameof(GetTotpCode));
+                _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(GetTotpCode)));
             }
             catch (Exception ex)
             {
@@ -109,7 +93,7 @@ namespace ragaccountmgr
             if (_totpGenerators.ContainsKey(accountId))
             {
                 _totpGenerators.Remove(accountId);
-                OnPropertyChanged(nameof(GetTotpCode));
+                _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(GetTotpCode)));
             }
         }
 
@@ -140,7 +124,7 @@ namespace ragaccountmgr
                 if (_timerTick != value)
                 {
                     _timerTick = value;
-                    OnPropertyChanged(nameof(TimerTick));
+                    _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(TimerTick)));
                 }
             }
         }
@@ -148,54 +132,55 @@ namespace ragaccountmgr
         // Method to manually trigger an update for testing
         public void ForceUpdate()
         {
-            UpdateCountdown(null, EventArgs.Empty);
+            OnMainTimerTick(null);
         }
 
-        private void UpdateTotpCodes(object? sender, EventArgs e)
+        private void OnMainTimerTick(object? state)
         {
             if (_disposed) return;
 
-            var updated = false;
-            var now = GetCurrentUtcNow();
-            foreach (var kvp in _totpGenerators)
+            // Check if NTP sync is needed
+            var now = DateTime.UtcNow;
+            if (now - _ntpLastSync >= _ntpSyncInterval)
             {
-                var generator = kvp.Value;
-                var newCode = generator.Totp.ComputeTotp();
-
-                if (newCode != generator.CurrentCode)
-                {
-                    generator.CurrentCode = newCode;
-                    generator.LastUpdate = now;
-                    updated = true;
-                }
+                _ = SyncNtpTimeAsync();
             }
 
-            if (updated)
-            {
-                OnPropertyChanged(nameof(GetTotpCode));
-            }
+            // Update TOTP codes and countdown
+            UpdateTotpAndCountdown();
+
+            // Increment timer tick
+            TimerTick++;
         }
 
-        private void UpdateCountdown(object? sender, EventArgs e)
+        private void UpdateTotpAndCountdown()
         {
-            if (_disposed) return;
-
-            var updated = false;
+            var countdownUpdated = false;
             var codeUpdated = false;
             var now = GetCurrentUtcNow();
+            
             foreach (var kvp in _totpGenerators)
             {
                 var generator = kvp.Value;
 
+                // Calculate remaining seconds more precisely
                 var timeStep = 30;
-                var secondsSinceEpoch = (long)(now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
-                var currentStep = secondsSinceEpoch / timeStep;
-                var nextStep = currentStep + 1;
-                var nextStepTime = nextStep * timeStep;
-                var remainingSeconds = (int)(nextStepTime - secondsSinceEpoch);
+                var secondsSinceEpoch = (now - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+                var currentStepProgress = secondsSinceEpoch % timeStep;
+                var remainingSeconds = Math.Max(1, (int)Math.Ceiling(timeStep - currentStepProgress));
+                
+                // Ensure we don't skip from 1 to 30 - handle the transition smoothly
+                if (remainingSeconds == 30 && generator.RemainingSeconds == 1)
+                {
+                    remainingSeconds = 30;
+                }
+                else if (remainingSeconds > 30)
+                {
+                    remainingSeconds = 30;
+                }
 
-                var newCode = generator.Totp.ComputeTotp();
-                if (newCode != generator.CurrentCode || remainingSeconds == 0)
+                var newCode = generator.Totp.ComputeTotp(now);
+                if (newCode != generator.CurrentCode)
                 {
                     generator.CurrentCode = newCode;
                     generator.LastUpdate = now;
@@ -205,20 +190,19 @@ namespace ragaccountmgr
                 if (remainingSeconds != generator.RemainingSeconds)
                 {
                     generator.RemainingSeconds = remainingSeconds;
-                    updated = true;
+                    countdownUpdated = true;
                 }
             }
 
-            TimerTick++;
-
-            if (updated)
+            // Marshal UI updates back to the UI thread
+            if (countdownUpdated)
             {
-                OnPropertyChanged(nameof(GetRemainingSeconds));
+                _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(GetRemainingSeconds)));
             }
 
             if (codeUpdated)
             {
-                OnPropertyChanged(nameof(GetTotpCode));
+                _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(GetTotpCode)));
             }
         }
 
@@ -233,8 +217,7 @@ namespace ragaccountmgr
         {
             if (!_disposed)
             {
-                _timer?.Stop();
-                _countdownTimer?.Stop();
+                _mainTimer?.Dispose();
                 _disposed = true;
             }
         }
