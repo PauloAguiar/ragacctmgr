@@ -43,9 +43,11 @@ namespace ragaccountmgr
                                   (ulong)ntpData[serverReplyTime + 6] << 8 |
                                   (ulong)ntpData[serverReplyTime + 7];
 
-                var milliseconds = (intPart * 1000) + ((fractPart * 1000) / 0x100000000L);
-                var networkDateTime = new DateTime(1900, 1, 1).AddMilliseconds((long)milliseconds);
-                return networkDateTime.ToUniversalTime();
+                // Convert NTP timestamp to DateTime
+                // NTP timestamp is seconds since 1900-01-01 UTC, with fractional seconds
+                var seconds = intPart + (fractPart / (double)0x100000000L);
+                var networkDateTime = new DateTime(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds);
+                return networkDateTime;
             }
             catch
             {
